@@ -20,7 +20,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.grey,
       appBar: AppBar(
-        title: const Text('Firebase LASTNAME'), // Replace LASTNAME with your actual last name
+        title: const Text('Firebase Coretico'), // Replace LASTNAME with your actual last name
         centerTitle: true,
         backgroundColor: Colors.teal,
         actions: [

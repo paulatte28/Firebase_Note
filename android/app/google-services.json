@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "876682300208",
+    "project_id": "notes-afe85",
+    "storage_bucket": "notes-afe85.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876682300208:android:234e3ae21b51c26d0996f5",
+        "android_client_info": {
+          "package_name": "com.example.coretico_firebasenote"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoM9r3Ti5X3mA7oZyhcUd8Mj1abfSvCHg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,27 @@
+<<<<<<< class HomePage extends StatelessWidget {
+  final CrudService service = CrudService();
+  final TextEditingController nameCtrl = TextEditingController();
+  final TextEditingController qtyCtrl = TextEditingController();
+  HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+=======
+class HomePage extends StatefulWidget {
+  HomePage({super.key});
+
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final CrudService service = CrudService();
+  final TextEditingController nameCtrl = TextEditingController();
+  final TextEditingController qtyCtrl = TextEditingController();
+
+  bool showFavoritesOnly = false;
+  bool favoriteInDialog = false;
+
+  @override
+  Widget build(BuildContext context) {
+>>>>>>> class HomePage extends StatelessWidget {

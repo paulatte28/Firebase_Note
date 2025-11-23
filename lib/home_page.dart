@@ -2,20 +2,41 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:coretico_firebasenote/crud_service.dart';
 import 'package:flutter/material.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   final CrudService service = CrudService();
   final TextEditingController nameCtrl = TextEditingController();
   final TextEditingController qtyCtrl = TextEditingController();
-  HomePage({super.key});
+  bool showOnlyFavorites = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey,
       appBar: AppBar(
-        title: const Text('Firebase Coretico'),
+        title: const Text('Firebase LASTNAME'), // Replace LASTNAME with your actual last name
         centerTitle: true,
         backgroundColor: Colors.teal,
+        actions: [
+          IconButton(
+            icon: Icon(
+              showOnlyFavorites ? Icons.filter_alt : Icons.filter_alt_outlined,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                showOnlyFavorites = !showOnlyFavorites;
+              });
+            },
+            tooltip: showOnlyFavorites ? 'Show All' : 'Show Favorites Only',
+          ),
+        ],
       ), // AppBar
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.teal,
@@ -23,31 +44,55 @@ class HomePage extends StatelessWidget {
         onPressed: () => openAddDialog(context),
       ), // FloatingActionButton
       body: StreamBuilder<QuerySnapshot>(
-        stream: service.getItems(),
+        stream: service.getItemsWithFavoriteFilter(onlyFavorites: showOnlyFavorites),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
-            return const Center(child: Text("No items found", style: TextStyle(fontSize: 18)));
+            return Center(
+              child: Text(
+                showOnlyFavorites ? "No favorite items" : "No items found",
+                style: const TextStyle(fontSize: 18),
+              ),
+            );
           }
           return ListView.builder(
             padding: const EdgeInsets.all(8),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               var item = docs[index];
+              // Safely get favorite field, default to false if it doesn't exist
+              bool isFavorite = false;
+              try {
+                isFavorite = item['favorite'] ?? false;
+              } catch (e) {
+                isFavorite = false;
+              }
+              
               return Card(
                 elevation: 3,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 margin: const EdgeInsets.symmetric(vertical: 6),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: IconButton(
+                    icon: Icon(
+                      isFavorite ? Icons.star : Icons.star_border,
+                      color: isFavorite ? Colors.amber : Colors.grey,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      service.toggleFavorite(item.id, isFavorite);
+                    },
+                  ),
                   title: Text(
                     item['name'],
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ), // Text
-                  subtitle: Text("Quantity ${item['quantity']}",
+                  subtitle: Text(
+                    "Quantity ${item['quantity']}",
                     style: const TextStyle(fontSize: 14, color: Colors.grey),
                   ), // Text
                   trailing: Row(
@@ -59,13 +104,13 @@ class HomePage extends StatelessWidget {
                       ), // IconButton
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _confirmDelete(context, item.id,)
+                        onPressed: () => _confirmDelete(context, item.id),
                       ), // IconButton
                     ],
                   ), // Row
                 ), // ListTile
               ); // Card
-            }
+            },
           ); // ListView.builder
         }, // StreamBuilder
       ), // Scaffold
@@ -73,13 +118,17 @@ class HomePage extends StatelessWidget {
   }
 
   //DELETE UI
-  void _confirmDelete(BuildContext context, String id){
+  void _confirmDelete(BuildContext context, String id) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Delete item"),
         content: const Text("Are you sure you want to delete this item?"),
         actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
+          ), // TextButton
           TextButton(
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
             onPressed: () {
@@ -88,12 +137,12 @@ class HomePage extends StatelessWidget {
             },
           ), // TextButton
         ],
-      ) // AlertDialog
+      ), // AlertDialog
     );
   }
 
   //ADD UI
-  void openAddDialog (BuildContext context) {
+  void openAddDialog(BuildContext context) {
     nameCtrl.clear();
     qtyCtrl.clear();
 
@@ -111,7 +160,7 @@ class HomePage extends StatelessWidget {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ), // InputDecoration
             ), // TextField
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             TextField(
               controller: qtyCtrl,
               keyboardType: TextInputType.number,
@@ -134,19 +183,19 @@ class HomePage extends StatelessWidget {
             ),
             child: const Text("Save"),
             onPressed: () {
-              if(nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty){
-                service.addItem(nameCtrl.text, int.parse( qtyCtrl.text));
+              if (nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
+                service.addItem(nameCtrl.text, int.parse(qtyCtrl.text));
                 Navigator.pop(context);
               }
             },
           ), // ElevatedButton
         ],
-      ) // AlertDialog
+      ), // AlertDialog
     );
   }
 
   //EDIT UI
-  void openEditDialog(BuildContext context, DocumentSnapshot item){
+  void openEditDialog(BuildContext context, DocumentSnapshot item) {
     nameCtrl.text = item['name'];
     qtyCtrl.text = item['quantity'].toString();
 
@@ -187,7 +236,7 @@ class HomePage extends StatelessWidget {
             ),
             child: const Text("Update"),
             onPressed: () {
-              if(nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty){
+              if (nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
                 service.updateItem(item.id, nameCtrl.text, int.parse(qtyCtrl.text));
                 Navigator.pop(context);
               }

@@ -4,6 +4,21 @@ class CrudService {
   final CollectionReference items =
       FirebaseFirestore.instance.collection('items');
 
+  // Migration method to add favorite field to existing documents
+  Future<void> migrateExistingItems() async {
+    try {
+      final snapshot = await items.get();
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null && !data.containsKey('favorite')) {
+          await items.doc(doc.id).update({'favorite': false});
+        }
+      }
+    } catch (e) {
+      print('Migration error: $e');
+    }
+  }
+
   Future<void> addItem(String name, int quantity) {
     //CREATE
     return items.add({
@@ -21,7 +36,10 @@ class CrudService {
 
   Stream<QuerySnapshot> getItemsWithFavoriteFilter({bool onlyFavorites = false}) {
     if (onlyFavorites) {
-      return items.where('favorite', isEqualTo: true).orderBy('createdAt', descending: true).snapshots();
+      return items
+          .where('favorite', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .snapshots();
     }
     return getItems();
   }

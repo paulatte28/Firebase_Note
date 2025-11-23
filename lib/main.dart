@@ -22,9 +22,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Firebase CRUD Coretico',
       theme: ThemeData(
-       primarySwatch: Colors.teal,
+        primarySwatch: Colors.teal,
       ),
-      home: HomePage(),
+      home: const HomePage(),
     );
   }
 }

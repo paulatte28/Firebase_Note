@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:coretico_firebasenote/crud_service.dart';
+import 'package:coretico_firebasenote/auth_service.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatefulWidget {
@@ -11,6 +12,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final CrudService service = CrudService();
+  final AuthService authService = AuthService();
   final TextEditingController nameCtrl = TextEditingController();
   final TextEditingController qtyCtrl = TextEditingController();
   bool showOnlyFavorites = false;
@@ -20,7 +22,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.grey,
       appBar: AppBar(
-        title: const Text('Firebase Coretico'), // Replace LASTNAME with your actual last name
+        title: const Text('Firebase Coretico'),
         centerTitle: true,
         backgroundColor: Colors.teal,
         actions: [
@@ -36,13 +38,23 @@ class _HomePageState extends State<HomePage> {
             },
             tooltip: showOnlyFavorites ? 'Show All' : 'Show Favorites Only',
           ),
+          IconButton(
+            icon: const Icon(Icons.key, color: Colors.white),
+            onPressed: () => _showChangePasswordDialog(context),
+            tooltip: 'Change Password',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () => _confirmSignOut(context),
+            tooltip: 'Sign Out',
+          ),
         ],
-      ), // AppBar
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.teal,
         child: const Icon(Icons.add, color: Colors.white),
         onPressed: () => openAddDialog(context),
-      ), // FloatingActionButton
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: service.getItemsWithFavoriteFilter(onlyFavorites: showOnlyFavorites),
         builder: (context, snapshot) {
@@ -90,30 +102,159 @@ class _HomePageState extends State<HomePage> {
                   title: Text(
                     item['name'],
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ), // Text
+                  ),
                   subtitle: Text(
                     "Quantity ${item['quantity']}",
                     style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  ), // Text
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.orange),
                         onPressed: () => openEditDialog(context, item),
-                      ), // IconButton
+                      ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () => _confirmDelete(context, item.id),
-                      ), // IconButton
+                      ),
                     ],
-                  ), // Row
-                ), // ListTile
-              ); // Card
+                  ),
+                ),
+              );
             },
-          ); // ListView.builder
-        }, // StreamBuilder
-      ), // Scaffold
+          );
+        },
+      ),
+    );
+  }
+
+  // CHANGE PASSWORD DIALOG
+  void _showChangePasswordDialog(BuildContext context) {
+    final currentPasswordCtrl = TextEditingController();
+    final newPasswordCtrl = TextEditingController();
+    final confirmPasswordCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Change Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentPasswordCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Current Password',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newPasswordCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'New Password',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmPasswordCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Confirm New Password',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text("Change Password"),
+            onPressed: () async {
+              if (currentPasswordCtrl.text.isEmpty || 
+                  newPasswordCtrl.text.isEmpty || 
+                  confirmPasswordCtrl.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please fill all fields')),
+                );
+                return;
+              }
+
+              if (newPasswordCtrl.text.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Password must be at least 6 characters')),
+                );
+                return;
+              }
+
+              if (newPasswordCtrl.text != confirmPasswordCtrl.text) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Passwords do not match')),
+                );
+                return;
+              }
+
+              final success = await authService.changePassword(
+                currentPasswordCtrl.text,
+                newPasswordCtrl.text,
+              );
+
+              if (mounted) {
+                Navigator.pop(context);
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Password changed successfully!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to change password. Check current password.'),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // SIGN OUT CONFIRMATION
+  void _confirmSignOut(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Sign Out"),
+        content: const Text("Are you sure you want to sign out?"),
+        actions: [
+          TextButton(
+            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
+          ),
+          TextButton(
+            child: const Text("Sign Out", style: TextStyle(color: Colors.red)),
+            onPressed: () async {
+              Navigator.pop(context);
+              await authService.signOut();
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -128,16 +269,16 @@ class _HomePageState extends State<HomePage> {
           TextButton(
             child: const Text("Cancel"),
             onPressed: () => Navigator.pop(context),
-          ), // TextButton
+          ),
           TextButton(
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
             onPressed: () {
               service.deleteItem(id);
               Navigator.pop(context);
             },
-          ), // TextButton
+          ),
         ],
-      ), // AlertDialog
+      ),
     );
   }
 
@@ -158,8 +299,8 @@ class _HomePageState extends State<HomePage> {
               decoration: InputDecoration(
                 labelText: "Name",
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ), // InputDecoration
-            ), // TextField
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: qtyCtrl,
@@ -167,15 +308,15 @@ class _HomePageState extends State<HomePage> {
               decoration: InputDecoration(
                 labelText: "Quantity",
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ), // InputDecoration
-            ), // TextField
+              ),
+            ),
           ],
-        ), // Column
+        ),
         actions: [
           TextButton(
             child: const Text('Cancel'),
             onPressed: () => Navigator.pop(context),
-          ), // TextButton
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.teal,
@@ -188,9 +329,9 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(context);
               }
             },
-          ), // ElevatedButton
+          ),
         ],
-      ), // AlertDialog
+      ),
     );
   }
 
@@ -211,8 +352,8 @@ class _HomePageState extends State<HomePage> {
               decoration: InputDecoration(
                 labelText: "Name",
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ), // InputDecoration
-            ), // TextField
+              ),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: qtyCtrl,
@@ -220,15 +361,15 @@ class _HomePageState extends State<HomePage> {
               decoration: InputDecoration(
                 labelText: "Quantity",
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ), // InputDecoration
-            ), // TextField
+              ),
+            ),
           ],
-        ), // Column
+        ),
         actions: [
           TextButton(
             child: const Text("Cancel"),
             onPressed: () => Navigator.pop(context),
-          ), // TextButton
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
@@ -241,9 +382,9 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(context);
               }
             },
-          ), // ElevatedButton
+          ),
         ],
-      ), // AlertDialog
+      ),
     );
   }
 }

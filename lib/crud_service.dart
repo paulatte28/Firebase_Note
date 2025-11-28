@@ -1,8 +1,51 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:image_picker/image_picker.dart';
+
+class PickedImage {
+  final File file;
+  final String url;
+  PickedImage({required this.file, required this.url});
+}
 
 class CrudService {
   final CollectionReference items =
       FirebaseFirestore.instance.collection('items');
+
+  // Replace 'your_upload_preset' with your actual unsigned upload preset name
+  // You can find this in Cloudinary Dashboard > Settings > Upload > Upload presets
+  final CloudinaryPublic _cloudinary = CloudinaryPublic(
+    'dtklmbgad',  // Your cloud name
+    'notes_app',  // CHANGE THIS to your unsigned preset name
+    cache: false,
+  );
+
+  final ImagePicker _picker = ImagePicker();
+
+  // Pick image from gallery and upload to Cloudinary
+  Future<PickedImage?> pickImageForAddItem() async {
+    try {
+      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return null;
+
+      final file = File(pickedFile.path);
+
+      print('Uploading image to Cloudinary...');
+      final response = await _cloudinary.uploadFile(
+        CloudinaryFile.fromFile(
+          file.path,
+          resourceType: CloudinaryResourceType.Image,
+        ),
+      );
+
+      print('Upload successful: ${response.secureUrl}');
+      return PickedImage(file: file, url: response.secureUrl);
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
+  }
 
   // Migration method to add favorite field to existing documents
   Future<void> migrateExistingItems() async {
@@ -19,11 +62,12 @@ class CrudService {
     }
   }
 
-  Future<void> addItem(String name, int quantity) {
-    //CREATE
-    return items.add({
+  //CREATE
+  Future<void> addItemWithImage(String name, int quantity, String? imageUrl) async {
+    await items.add({
       'name': name,
       'quantity': quantity,
+      'image_url': imageUrl,
       'favorite': false,
       'createdAt': Timestamp.now(),
     });
@@ -45,15 +89,19 @@ class CrudService {
   }
 
   //UPDATE
-  Future<void> updateItem(String id, String name, int quantity, {bool? favorite}) {
-    Map<String, dynamic> updateData = {
+  Future<void> updateItem(String id, String name, int quantity) {
+    return items.doc(id).update({
       'name': name,
       'quantity': quantity,
-    };
-    if (favorite != null) {
-      updateData['favorite'] = favorite;
-    }
-    return items.doc(id).update(updateData);
+    });
+  }
+
+  Future<void> updateItemWithImage(String id, String name, int quantity, String? imageUrl) {
+    return items.doc(id).update({
+      'name': name,
+      'quantity': quantity,
+      'image_url': imageUrl,
+    });
   }
 
   Future<void> toggleFavorite(String id, bool currentFavorite) {

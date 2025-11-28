@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:coretico_firebasenote/crud_service.dart';
 import 'package:coretico_firebasenote/auth_service.dart';
@@ -22,7 +23,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.grey,
       appBar: AppBar(
-        title: const Text('Firebase Coretico'),
+        title: const Text('Firebase Lastname'),
         centerTitle: true,
         backgroundColor: Colors.teal,
         actions: [
@@ -75,6 +76,9 @@ class _HomePageState extends State<HomePage> {
             itemCount: docs.length,
             itemBuilder: (context, index) {
               var item = docs[index];
+              final data = item.data() as Map<String, dynamic>;
+              final imageUrl = data['image_url'];
+              
               // Safely get favorite field, default to false if it doesn't exist
               bool isFavorite = false;
               try {
@@ -89,27 +93,37 @@ class _HomePageState extends State<HomePage> {
                 margin: const EdgeInsets.symmetric(vertical: 6),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: IconButton(
-                    icon: Icon(
-                      isFavorite ? Icons.star : Icons.star_border,
-                      color: isFavorite ? Colors.amber : Colors.grey,
-                      size: 28,
-                    ),
-                    onPressed: () {
-                      service.toggleFavorite(item.id, isFavorite);
-                    },
-                  ),
+                  leading: imageUrl != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            imageUrl,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : null,
                   title: Text(
-                    item['name'],
+                    data['name'] ?? '',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    "Quantity ${item['quantity']}",
+                    "Quantity ${data['quantity'] ?? 0}",
                     style: const TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        icon: Icon(
+                          isFavorite ? Icons.star : Icons.star_border,
+                          color: isFavorite ? Colors.amber : Colors.grey,
+                        ),
+                        onPressed: () {
+                          service.toggleFavorite(item.id, isFavorite);
+                        },
+                      ),
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.orange),
                         onPressed: () => openEditDialog(context, item),
@@ -287,50 +301,104 @@ class _HomePageState extends State<HomePage> {
     nameCtrl.clear();
     qtyCtrl.clear();
 
+    File? selectedImageFile;
+    String? selectedImageUrl;
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Add item"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: "Name",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text("Add item"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: "Name",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: qtyCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: "Quantity",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (selectedImageUrl != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    selectedImageUrl!,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              const SizedBox(height: 0),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.upload_file),
+                label: const Text("Upload Image"),
+                onPressed: () async {
+                  try {
+                    final pickedImage = await service.pickImageForAddItem();
+                    if (pickedImage != null) {
+                      setState(() {
+                        selectedImageFile = pickedImage.file;
+                        selectedImageUrl = pickedImage.url;
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Image uploaded successfully!'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to upload image: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(context),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: qtyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: "Quantity",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              child: const Text("Save"),
+              onPressed: () async {
+                if (nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
+                  await service.addItemWithImage(
+                    nameCtrl.text,
+                    int.parse(qtyCtrl.text),
+                    selectedImageUrl,
+                  );
+                  Navigator.pop(context);
+                }
+              },
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text("Save"),
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
-                service.addItem(nameCtrl.text, int.parse(qtyCtrl.text));
-                Navigator.pop(context);
-              }
-            },
-          ),
-        ],
       ),
     );
   }
@@ -340,50 +408,99 @@ class _HomePageState extends State<HomePage> {
     nameCtrl.text = item['name'];
     qtyCtrl.text = item['quantity'].toString();
 
+    String? currentImageUrl = item['image_url'];
+    String? selectedImageUrl = currentImageUrl;
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Edit item"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: "Name",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text("Edit item"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: "Name",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: qtyCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: "Quantity",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (selectedImageUrl != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    selectedImageUrl!,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              const SizedBox(height: 0),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.upload_file),
+                label: const Text("Change Image"),
+                onPressed: () async {
+                  try {
+                    final pickedImage = await service.pickImageForAddItem();
+                    if (pickedImage != null) {
+                      setState(() {
+                        selectedImageUrl = pickedImage.url;
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Image uploaded successfully!'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to upload image: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: () => Navigator.pop(context),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: qtyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: "Quantity",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              child: const Text("Update"),
+              onPressed: () {
+                if (nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
+                  service.updateItemWithImage(item.id, nameCtrl.text, int.parse(qtyCtrl.text), selectedImageUrl);
+                  Navigator.pop(context);
+                }
+              },
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            child: const Text("Cancel"),
-            onPressed: () => Navigator.pop(context),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text("Update"),
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty && qtyCtrl.text.isNotEmpty) {
-                service.updateItem(item.id, nameCtrl.text, int.parse(qtyCtrl.text));
-                Navigator.pop(context);
-              }
-            },
-          ),
-        ],
       ),
     );
   }
